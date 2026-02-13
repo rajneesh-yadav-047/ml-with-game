@@ -4,6 +4,11 @@ import torch.optim as optim
 import torch.nn.functional as F
 import os
 
+if not torch.cuda.is_available():
+    print("ERROR: CUDA is not available. This script requires a GPU with CUDA support to run.")
+    exit()
+device = torch.device("cuda")
+
 class Linear_QNet(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
         super().__init__()
@@ -31,10 +36,10 @@ class QTrainer:
         self.criterion = nn.MSELoss()
 
     def train_step(self, state, action, reward, next_state, done):
-        state = torch.tensor(state, dtype=torch.float)
-        next_state = torch.tensor(next_state, dtype=torch.float)
-        action = torch.tensor(action, dtype=torch.long)
-        reward = torch.tensor(reward, dtype=torch.float)
+        state = torch.tensor(state, dtype=torch.float).to(device)
+        next_state = torch.tensor(next_state, dtype=torch.float).to(device)
+        action = torch.tensor(action, dtype=torch.long).to(device)
+        reward = torch.tensor(reward, dtype=torch.float).to(device)
         # (n, x)
 
         if len(state.shape) == 1:
