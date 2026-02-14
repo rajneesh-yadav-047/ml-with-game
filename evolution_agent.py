@@ -42,9 +42,9 @@ class EvolutionAgent:
         self.hidden_size = 256
         self.output_size = 3
         self.pop_size = 400
-        self.mutation_rate = 0.1
+        self.mutation_rate = 0.2
         self.mutation_strength = 0.2
-        self.survival_rate = 0.01
+        self.survival_rate = 0.05
         self.population = [EvolutionNet(self.input_size, self.hidden_size, self.output_size).to(device) for _ in range(self.pop_size)]
 
     @staticmethod
@@ -118,6 +118,35 @@ class EvolutionAgent:
                 param.add_(mask * noise)
         return child
 
+    def save_checkpoint(self, generation, record, total_score, plot_scores, plot_mean_scores, filename='checkpoint.pth'):
+        checkpoint = {
+            'generation': generation,
+            'record': record,
+            'total_score': total_score,
+            'plot_scores': plot_scores,
+            'plot_mean_scores': plot_mean_scores,
+            'population': [model.state_dict() for model in self.population]
+        }
+        folder_path = './model'
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        path = os.path.join(folder_path, filename)
+        torch.save(checkpoint, path)
+
+    def load_checkpoint(self, filename='checkpoint.pth'):
+        path = os.path.join('./model', filename)
+        if os.path.exists(path):
+            checkpoint = torch.load(path)
+            self.population = []
+            for state_dict in checkpoint['population']:
+                model = EvolutionNet(self.input_size, self.hidden_size, self.output_size).to(device)
+                model.load_state_dict(state_dict)
+                self.population.append(model)
+            self.pop_size = len(self.population)
+            print(f"Checkpoint loaded from {path}")
+            return checkpoint
+        return None
+
     def train_generation(self):
         game = MultiSnakeGameAI(n_snakes=self.pop_size)
         scores = [(0, model, 0) for model in self.population] # (fitness, model, score)
@@ -170,6 +199,15 @@ def train():
     generation = 0
     record = 0
 
+    checkpoint = agent.load_checkpoint()
+    if checkpoint:
+        generation = checkpoint['generation']
+        record = checkpoint['record']
+        total_score = checkpoint['total_score']
+        plot_scores = checkpoint['plot_scores']
+        plot_mean_scores = checkpoint['plot_mean_scores']
+        print(f"Resuming from generation {generation} with record {record}")
+
     print(f"Starting Evolution Training on {device} ({torch.cuda.get_device_name(0)}) with {agent.pop_size} snakes...")
 
     while True:
@@ -180,15 +218,21 @@ def train():
             record = best_score
             best_model.save(f'evolution_model_gen{generation}_s{best_score}.pth')
             print(f"New Record: {record} (Gen {generation})")
+            agent.save_checkpoint(generation, record, total_score, plot_scores, plot_mean_scores)
+
+        if generation % 10 == 0:
+            agent.save_checkpoint(generation, record, total_score, plot_scores, plot_mean_scores)
 
         # Update tracking for mean score so the print statement below has a valid value
         plot_scores.append(best_score)
         total_score += best_score
         mean_score = total_score / generation
         plot_mean_scores.append(mean_score)
-        # plot(plot_scores, plot_mean_scores)
-        # plot_weights(best_model)
-        # plot_network_graph(best_model)
+
+        if generation % 20 == 0:
+            plot(plot_scores, plot_mean_scores)
+            plot_weights(best_model)
+            plot_network_graph(best_model)
 
         print(f"Gen {generation} | Best Fitness: {best_fitness:.2f} | Best Score: {best_score} | Mean Score: {mean_score:.2f}")
 

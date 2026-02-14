@@ -225,6 +225,12 @@ class MultiSnakeGameAI:
             else:
                 snake['step_reward'] = -2
 
+        # Count head positions to detect head-to-head collisions
+        head_counts = {}
+        for idx in alive_indices:
+            head = self.snakes[idx]['head']
+            head_counts[head] = head_counts.get(head, 0) + 1
+
         # Check collisions and food
         for idx in alive_indices:
             snake = self.snakes[idx]
@@ -243,6 +249,9 @@ class MultiSnakeGameAI:
             
             # Check collision (Wall or Any Snake)
             if self.is_collision(snake['head']):
+                snake['alive'] = False
+                reward = -50
+            elif head_counts[snake['head']] > 1:
                 snake['alive'] = False
                 reward = -50
             elif loop_detected:
